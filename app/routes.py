@@ -1,10 +1,14 @@
 from app import app
+from app.models.shortlinks import *
 from flask import render_template,request,jsonify
+from pymongo import MongoClient
+from functools import wraps
+from mongoframes import *
 import pymongo
 import string
 import random
-from pymongo import MongoClient
-from functools import wraps
+
+
 app.config['MONGO_DBNAME'] = 'testdb'
 app.config['MONGO_URI'] = 'mongodb://localhost:27017/testdb'
 client = MongoClient(app.config['MONGO_URI'])
@@ -26,9 +30,8 @@ def validateHeader(func):
 @app.route('/shortlinks/',methods=['GET'])
 @validateHeader
 def get_all_links():
-    shortlinks = db.shortlinks
-    output = []
-    for link in  shortlinks.find():
+
+    for link in  Shortlink.many():
         output.append({'slug':link['slug'],'ios':link['ios'],'android':link['android'],'web':link['web']})
     response = jsonify(output)
     response.status_code=200
@@ -44,21 +47,27 @@ def add_new_link():
         response= jsonify({'status':'failed','message':'ios, android, and web fields has to be present.'})
         response.status_code=400
         return response
+
     if(not('slug' in request.json)):
         slug = generateSlug()
     else: slug = request.json['slug']
 
-    shortlinks = db.shortlinks
-    ios = request.json['ios']
-    android=request.json['android']
-    web=request.json['web']
-    linkWithSameSlug = shortlinks.find_one({'slug':slug})
+    shortlink = Shortlink(
+        slug=slug,
+        ios= request.json['ios'],
+        android=request.json['android'],
+        web=request.json['web']
+    )
+
+    linkWithSameSlug = Shortlink.one(Q.slug==slug)
 
     if(linkWithSameSlug):
         response= jsonify({'status':'failed','message':'slug is already in use'})
         response.status_code=400
         return response
-    id_ = shortlinks.insert({'slug':slug,'ios':ios,'android':android,'web':web})
+
+    shortlink.insert()
+
     response= jsonify({'status':'successful','slug':slug,'message':'created successfuly'})
     response.status_code=201
     return response;
@@ -67,25 +76,20 @@ def add_new_link():
 @validateHeader
 def put(slug):
 
-    shortlinks = db.shortlinks
-    linkWithSameSlug = shortlinks.find_one({'slug':slug})
-    if(not linkWithSameSlug):
+    shortlink = Shortlink.one(Q.slug==slug,projection={'ios': {'$sub': Ios},'android': {'$sub': Android}})
+    if(not shortlink):
         response= jsonify({'status':'failed','message':'There is no link with this slug.'})
         response.status_code=400
         return response
-    ios = linkWithSameSlug['ios']
-    android=linkWithSameSlug['android']
 
-    web = request.json['web'] if 'web' in request.json else linkWithSameSlug['web']
-    ios['fallback'] = request.json['ios']['fallback'] if 'ios' in request.json and 'fallback' in request.json['ios'] else ios['fallback']
-    ios['primary'] = request.json['ios']['primary'] if 'ios' in request.json and 'primary' in request.json['ios'] else ios['primary']
-    android['fallback'] = request.json['android']['fallback'] if 'android' in request.json and 'fallback' in request.json['android'] else android ['fallback']
-    android['primary'] = request.json['android']['primary'] if 'android' in request.json and 'primary' in request.json['android'] else android['primary']
 
-    shortlinks.update_one(
-      { "slug" : slug },
-      { "$set": {"web" : web, "ios" : ios,    "android":android } }
-   );
+    shortlink.web = request.json['web'] if 'web' in request.json else shortlink.web
+    shortlink.ios.fallback= request.json['ios']['fallback'] if 'ios' in request.json and 'fallback' in request.json['ios'] else shortlink.ios.fallback
+    shortlink.ios.primary= request.json['ios']['primary'] if 'ios' in request.json and 'primary' in request.json['ios'] else shortlink.ios.primary
+    shortlink.android.fallback = request.json['android']['fallback'] if 'android' in request.json and 'fallback' in request.json['android'] else shortink.android.fallback
+    shortlink.android.primary= request.json['android']['primary'] if 'android' in request.json and 'primary' in request.json['android'] else shortink.android.primary
+
+    shortlink.update()
 
     response= jsonify({'status':'successful','message':'updated successfuly'})
     response.status_code=201
