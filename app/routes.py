@@ -22,7 +22,7 @@ def validateHeader(func):
     def func_wrapper(*args, **kwargs):
         if not request.content_type == 'application/json':
             response = jsonify({'status' : 'failed', 'message' : 'Bad Request'})
-            response.status_code=401
+            response.status_code=400
             return response
         return func(*args, **kwargs)
     return func_wrapper
@@ -30,7 +30,7 @@ def validateHeader(func):
 @app.route('/shortlinks/',methods=['GET'])
 @validateHeader
 def get_all_links():
-
+    output=[]
     for link in  Shortlink.many():
         output.append({'slug':link['slug'],'ios':link['ios'],'android':link['android'],'web':link['web']})
     response = jsonify(output)
@@ -86,8 +86,8 @@ def put(slug):
     shortlink.web = request.json['web'] if 'web' in request.json else shortlink.web
     shortlink.ios.fallback= request.json['ios']['fallback'] if 'ios' in request.json and 'fallback' in request.json['ios'] else shortlink.ios.fallback
     shortlink.ios.primary= request.json['ios']['primary'] if 'ios' in request.json and 'primary' in request.json['ios'] else shortlink.ios.primary
-    shortlink.android.fallback = request.json['android']['fallback'] if 'android' in request.json and 'fallback' in request.json['android'] else shortink.android.fallback
-    shortlink.android.primary= request.json['android']['primary'] if 'android' in request.json and 'primary' in request.json['android'] else shortink.android.primary
+    shortlink.android.fallback = request.json['android']['fallback'] if 'android' in request.json and 'fallback' in request.json['android'] else shortlink.android.fallback
+    shortlink.android.primary= request.json['android']['primary'] if 'android' in request.json and 'primary' in request.json['android'] else shortlink.android.primary
 
     shortlink.update()
 
